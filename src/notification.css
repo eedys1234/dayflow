@@ -1,0 +1,205 @@
+/* 알림 창은 투명한 WebviewWindow 위에 카드만 떠 있는 형태다.
+   배경을 절대 칠하지 않아야 모서리 둥근 카드가 자연스럽게 보인다. */
+
+:root {
+  --card-bg: #ffffff;
+  --card-border: #e0e3e8;
+  --text: #1b1f24;
+  --muted: #6b7480;
+  --accent: #3b6ef5;
+  --overdue: #d64545;
+}
+
+/* 메인 창과 동일한 3단 규칙: 시스템 따름 / 라이트 고정 / 다크 고정 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --card-bg: #23282e;
+    --card-border: #343b43;
+    --text: #e7eaee;
+    --muted: #939dab;
+    --accent: #5b86ff;
+    --overdue: #e06565;
+  }
+}
+
+:root[data-theme="dark"] {
+  --card-bg: #23282e;
+  --card-border: #343b43;
+  --text: #e7eaee;
+  --muted: #939dab;
+  --accent: #5b86ff;
+  --overdue: #e06565;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  color: var(--text);
+  font-family:
+    "Pretendard", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 11px 13px 12px;
+  box-shadow: 0 8px 26px rgb(0 0 0 / 22%);
+  animation: slide-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card.overdue {
+  border-left-color: var(--overdue);
+}
+
+.card.test {
+  border-left-color: var(--muted);
+}
+
+.card.leaving {
+  animation: slide-out 0.18s ease-in forwards;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-out {
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+.card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.card.overdue .tag {
+  color: var(--overdue);
+}
+
+.close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.close:hover {
+  background: rgb(128 128 128 / 18%);
+}
+
+.card h1 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 650;
+  word-break: break-word;
+}
+
+.when {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.body {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card footer {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.card footer button {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.card footer button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.card footer button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.card footer button.primary:hover {
+  filter: brightness(1.08);
+  color: #fff;
+}
+
+/* 반복 알림 회차 배지 */
+.seq {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+}

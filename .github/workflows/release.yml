@@ -1,0 +1,105 @@
+name: Release
+
+# v0.2.0 형태의 태그를 푸시하면 Windows / macOS 설치 파일을 만들어
+# 같은 태그의 GitHub Release 에 올린다.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write # Release 생성 및 에셋 업로드에 필요
+
+    strategy:
+      fail-fast: false # 한 OS가 실패해도 나머지는 계속 만든다
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS (Apple Silicon)
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            label: macOS (Intel)
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: Windows
+
+    runs-on: ${{ matrix.platform }}
+    name: ${{ matrix.label }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 태그와 tauri.conf.json 의 version 이 다르면 여기서 멈춘다.
+      # 화면에 뜨는 버전이 곧 그 태그라는 것을 보장하기 위한 장치다.
+      - name: Verify version matches tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          CONF=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "tag=$TAG  tauri.conf.json=$CONF  package.json=$PKG"
+          if [ "$CONF" != "$TAG" ]; then
+            echo "::error::tauri.conf.json($CONF) 와 태그($TAG) 버전이 다릅니다. scripts/release.sh 로 올리세요."
+            exit 1
+          fi
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::package.json($PKG) 와 태그($TAG) 버전이 다릅니다."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # 캐시가 없으면 OS당 15~25분씩 걸린다. 반드시 필요하다.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: ${{ matrix.target }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 자동 업데이트를 켠 뒤에만 값이 들어간다. 비어 있어도 빌드는 통과한다.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS 공증. 인증서를 등록하기 전에는 건너뛴다.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Dayflow __VERSION__"
+          releaseBody: |
+            ## 설치
+
+            | OS | 파일 |
+            |---|---|
+            | Windows | `.exe` (NSIS 설치 관리자) |
+            | macOS (Apple Silicon) | `_aarch64.dmg` |
+            | macOS (Intel) | `_x64.dmg` |
+
+            > 코드 서명 전이라 Windows SmartScreen 경고가 뜰 수 있습니다.
+            > "추가 정보" → "실행"을 누르면 설치됩니다.
+            > macOS 는 우클릭 → 열기로 실행하세요.
+
+            변경 내역은 아래를 참고하세요.
+          releaseDraft: true # 확인 후 직접 게시. 자동 배포하려면 false 로.
+          prerelease: false
+          args: --target ${{ matrix.target }}
