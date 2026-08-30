@@ -8,6 +8,8 @@
   ],
   "permissions": [
     "core:default",
-    "notification:default"
+    "notification:default",
+    "dialog:default",
+    "opener:default"
   ]
 }

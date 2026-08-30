@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as api from "../api";
+import { exportToExcel } from "../export";
 import { useSettings } from "../settings";
 import {
   REMIND_OFFSETS,
@@ -238,6 +239,19 @@ export default function SettingsPage({ tasks }: { tasks: Task[] }) {
                 <strong>{stats.remind}</strong>
                 <span>알림 대기</span>
               </div>
+            </div>
+
+            <div className="setting">
+              <div className="setting-label">
+                <strong>Excel 로 내보내기</strong>
+                <span>
+                  기한 없는 항목까지 포함해 전체를 <code>.xlsx</code> 파일로 저장합니다.
+                  일정 시트와 요약 시트가 함께 만들어집니다.
+                </span>
+              </div>
+              <button type="button" onClick={() => void exportToExcel("전체", null, null)}>
+                ⭳ 전체 내보내기
+              </button>
             </div>
 
             <div className="setting">

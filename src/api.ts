@@ -25,6 +25,14 @@ export const sendTestNotification = () => invoke<void>("send_test_notification")
 
 export const getAppVersion = () => invoke<string>("app_version");
 
+/** 기간(from~to)을 xlsx 로 저장. from 이 null 이면 전체. 반환값은 기록한 건수 */
+export const exportXlsx = (
+  path: string,
+  from: number | null,
+  to: number | null,
+  label: string,
+) => invoke<number>("export_xlsx", { path, from, to, label });
+
 // --- 설정 ---
 
 export const getSetting = (key: string) => invoke<string | null>("get_setting", { key });

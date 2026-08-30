@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { exportToExcel } from "../export";
 import StatusBoard from "../components/StatusBoard";
 import TimeGridView from "../components/TimeGridView";
 import MonthView from "../components/MonthView";
@@ -41,6 +42,7 @@ export default function CalendarPage({
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [view, setView] = useState<ViewKind>("day");
   const [mode, setMode] = useState<Mode>("board");
+  const [exporting, setExporting] = useState(false);
 
   const shift = (dir: number) =>
     setAnchor((a) =>
@@ -91,6 +93,23 @@ export default function CalendarPage({
         </h1>
 
         <div className="view-switch">
+          <button
+            type="button"
+            className="export-btn"
+            disabled={exporting}
+            title="현재 기간을 Excel 파일로 저장"
+            onClick={async () => {
+              setExporting(true);
+              try {
+                await exportToExcel(rangeTitle(anchor, view, settings.weekStart), range.from, range.to);
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            ⭳ Excel
+          </button>
+
           <div className="seg sub">
             <button
               type="button"

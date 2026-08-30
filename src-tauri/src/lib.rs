@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod export;
 mod models;
 mod notify;
 mod scheduler;
@@ -16,6 +17,8 @@ pub fn run() {
             tray::focus_main(app);
         }))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(notify::NotifyQueue::default())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -46,6 +49,7 @@ pub fn run() {
             commands::reschedule_task,
             commands::snooze_task,
             commands::app_version,
+            export::export_xlsx,
             commands::get_setting,
             commands::set_setting,
             commands::notification_ready,
