@@ -30,6 +30,8 @@ function NotificationApp() {
 
   const ttlFor = useCallback((kind: NotificationPayload["kind"]) => {
     if (kind === "test") return TEST_TTL * 1000;
+    // 브리핑은 하루 한 번뿐이라 조금 더 오래 남겨둔다.
+    if (kind === "briefing") return ttlSec.current * 2 * 1000;
     if (kind === "overdue") return ttlSec.current * OVERDUE_FACTOR * 1000;
     return ttlSec.current * 1000;
   }, []);
@@ -178,7 +180,9 @@ function NotificationApp() {
                 ? "기한 지남"
                 : c.payload.kind === "test"
                   ? "미리보기"
-                  : "예정된 할 일"}
+                  : c.payload.kind === "briefing"
+                    ? "오늘의 브리핑"
+                    : "예정된 할 일"}
               {c.payload.repeatSeq !== null && (
                 <span className="seq">
                   {c.payload.repeatSeq}

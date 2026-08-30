@@ -25,6 +25,10 @@ export default defineConfig({
         main: r("index.html"),
         // 우측 하단 알림 창 (별도 WebviewWindow)
         notification: r("notification.html"),
+        // 우측 상단 요약 위젯
+        widget: r("widget.html"),
+        // 전역 단축키로 여는 빠른 입력
+        quickadd: r("quickadd.html"),
       },
     },
   },

@@ -9,7 +9,8 @@ use crate::notify;
 
 /// 할 일 목록이 바뀌었음을 모든 창에 알린다.
 fn broadcast_changed(app: &AppHandle) {
-    let _ = app.emit("tasks://changed", ());
+    // 트레이 툴팁과 요약 위젯도 같은 시점에 따라가야 한다.
+    crate::tray::broadcast(app);
 }
 
 fn load_task(conn: &rusqlite::Connection, id: &str) -> Result<Task, String> {
@@ -394,6 +395,11 @@ pub fn set_setting(
             rusqlite::params![key, value],
         )
         .map_err(|e| format!("설정 저장 실패: {e}"))?;
+    }
+
+    // 창 닫기 동작은 Rust 쪽 캐시에 즉시 반영해야 다음 닫기부터 적용된다.
+    if key == "closeToTray" {
+        crate::tray::set_close_to_tray(matches!(value.as_str(), "true" | "1"));
     }
 
     let _ = app.emit("settings://changed", (key, value));

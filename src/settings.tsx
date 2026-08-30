@@ -23,6 +23,20 @@ export interface Settings {
   defaultRepeatInterval: number;
   /** 새 할 일의 기본 반복 횟수 */
   defaultRepeatCount: number;
+  /** 창 닫기(X)를 트레이 숨김으로 볼지 */
+  closeToTray: boolean;
+  /** 우측 상단 요약 위젯 표시 여부 */
+  widgetVisible: boolean;
+  /** 전역 단축키 (빈 문자열이면 사용 안 함) */
+  quickAddShortcut: string;
+  /** 아침 브리핑 사용 여부 */
+  briefingEnabled: boolean;
+  /** 브리핑 시각 — 자정 이후 분 */
+  briefingAtMin: number;
+  /** 자동 백업 사용 여부 */
+  autoBackup: boolean;
+  /** 백업 보관 개수 */
+  backupKeep: number;
 }
 
 export const DEFAULTS: Settings = {
@@ -32,6 +46,13 @@ export const DEFAULTS: Settings = {
   notifyTtlSec: 20,
   defaultRepeatInterval: 0,
   defaultRepeatCount: 1,
+  closeToTray: true,
+  widgetVisible: false,
+  quickAddShortcut: "CommandOrControl+Shift+Space",
+  briefingEnabled: false,
+  briefingAtMin: 9 * 60,
+  autoBackup: true,
+  backupKeep: 10,
 };
 
 /**
@@ -59,10 +80,19 @@ function parse(key: keyof Settings, raw: string | null): unknown {
     case "defaultRemindOffset":
     case "notifyTtlSec":
     case "defaultRepeatInterval":
-    case "defaultRepeatCount": {
+    case "defaultRepeatCount":
+    case "briefingAtMin":
+    case "backupKeep": {
       const n = Number(raw);
       return Number.isFinite(n) ? n : undefined;
     }
+    case "closeToTray":
+    case "widgetVisible":
+    case "briefingEnabled":
+    case "autoBackup":
+      return raw === "true" || raw === "1";
+    case "quickAddShortcut":
+      return raw;
   }
 }
 

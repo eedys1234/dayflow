@@ -1,9 +1,10 @@
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
-use crate::db::Db;
+use crate::backup;
+use crate::db::{self, Db};
 use crate::models::{now, NotificationPayload};
 use crate::notify;
 
@@ -27,6 +28,9 @@ pub fn spawn(app: AppHandle) {
         loop {
             ticker.tick().await;
             if let Err(e) = tick(&app) {
+                eprintln!("[scheduler] {e}");
+            }
+            if let Err(e) = daily_jobs(&app) {
                 eprintln!("[scheduler] {e}");
             }
         }
@@ -168,8 +172,141 @@ fn tick(app: &AppHandle) -> Result<(), String> {
         }
     }
 
-    // 목록의 알림 배지 등을 갱신하도록 모든 창에 알린다.
-    let _ = app.emit("tasks://changed", ());
+    // 목록의 알림 배지 등을 갱신하도록 모든 창과 트레이에 알린다.
+    crate::tray::broadcast(app);
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// 하루 한 번 도는 일들 — 오늘 브리핑, 자동 백업
+//
+// 별도 타이머를 두지 않고 알림 tick 에 얹는다. 20초마다 설정 몇 줄을 읽는
+// 비용은 무시할 수 있고, 타이머가 하나면 시각 계산도 한 곳에만 있게 된다.
+// ---------------------------------------------------------------------------
+
+/// 로컬 기준 오늘 날짜 문자열과 자정 이후 경과 분.
+fn local_day(ts: i64) -> Option<(String, i64, i64, i64)> {
+    use chrono::{Local, TimeZone, Timelike};
+    let dt = Local.timestamp_opt(ts, 0).single()?;
+    let day = dt.format("%Y-%m-%d").to_string();
+    let minutes = dt.hour() as i64 * 60 + dt.minute() as i64;
+
+    let d = dt.date_naive();
+    let from = Local
+        .from_local_datetime(&d.and_hms_opt(0, 0, 0)?)
+        .single()?
+        .timestamp();
+    let to = Local
+        .from_local_datetime(&d.and_hms_opt(23, 59, 59)?)
+        .single()?
+        .timestamp();
+
+    Some((day, minutes, from, to))
+}
+
+fn daily_jobs(app: &AppHandle) -> Result<(), String> {
+    let ts = now();
+    let Some((today, minutes, from, to)) = local_day(ts) else {
+        return Ok(());
+    };
+
+    // ----- 오늘 브리핑 -----
+    let briefing: Option<(i64, i64, i64)> = {
+        let db = app.state::<Db>();
+        let conn = db.0.lock().map_err(|_| "DB 잠금 실패".to_string())?;
+
+        let enabled = db::setting_bool(&conn, "briefingEnabled", false);
+        let at = db::setting_i64(&conn, "briefingAtMin", 9 * 60);
+        let last = db::setting(&conn, "briefingLastDay").unwrap_or_default();
+
+        // 시각이 지났고 오늘 아직 안 보냈다면 보낸다.
+        // 앱을 늦게 켠 날에도 그날 브리핑은 한 번 받는 편이 낫다.
+        if enabled && minutes >= at && last != today {
+            let pending: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM tasks WHERE deleted_at IS NULL AND status <> 'done'                      AND starts_at IS NOT NULL AND starts_at BETWEEN ?1 AND ?2",
+                    [from, to],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0);
+            let overdue: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM tasks WHERE deleted_at IS NULL AND status <> 'done'                      AND COALESCE(ends_at, starts_at) IS NOT NULL                      AND COALESCE(ends_at, starts_at) < ?1",
+                    [from],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0);
+
+            let first: i64 = conn
+                .query_row(
+                    "SELECT COALESCE(MIN(starts_at), 0) FROM tasks WHERE deleted_at IS NULL                      AND status <> 'done' AND starts_at BETWEEN ?1 AND ?2",
+                    [from, to],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0);
+
+            let _ = db::put_setting(&conn, "briefingLastDay", &today);
+            Some((pending, overdue, first))
+        } else {
+            None
+        }
+    };
+
+    if let Some((pending, overdue, first)) = briefing {
+        let body = if pending == 0 && overdue == 0 {
+            "예정된 일이 없습니다. 여유로운 하루 되세요.".to_string()
+        } else {
+            let mut parts = vec![format!("오늘 {pending}건")];
+            if overdue > 0 {
+                parts.push(format!("지난 항목 {overdue}건"));
+            }
+            parts.join(" · ")
+        };
+
+        let payload = NotificationPayload {
+            nid: Uuid::new_v4().to_string(),
+            task_id: None,
+            title: "오늘의 일정".into(),
+            body: Some(body),
+            starts_at: if first > 0 { Some(first) } else { None },
+            ends_at: None,
+            kind: "briefing".into(),
+            repeat_seq: None,
+            repeat_total: None,
+        };
+
+        if let Err(e) = notify::push(app, payload) {
+            eprintln!("[scheduler] 브리핑 표시 실패: {e}");
+        }
+    }
+
+    // ----- 자동 백업 -----
+    let should_backup = {
+        let db = app.state::<Db>();
+        let conn = db.0.lock().map_err(|_| "DB 잠금 실패".to_string())?;
+        let enabled = db::setting_bool(&conn, "autoBackup", true);
+        let last = db::setting_i64(&conn, "lastBackupAt", 0);
+        enabled && ts - last >= 24 * 60 * 60
+    };
+
+    if should_backup {
+        let dir = backup::backups_dir(app)?;
+        let db = app.state::<Db>();
+        match backup::create(&db, &dir) {
+            Ok(path) => {
+                let keep = {
+                    let conn = db.0.lock().map_err(|_| "DB 잠금 실패".to_string())?;
+                    let k = db::setting_i64(&conn, "backupKeep", 10).clamp(1, 100) as usize;
+                    let _ = db::put_setting(&conn, "lastBackupAt", &ts.to_string());
+                    k
+                };
+                backup::prune(&dir, keep);
+                eprintln!("[scheduler] 자동 백업: {}", path.display());
+            }
+            Err(e) => eprintln!("[scheduler] 자동 백업 실패: {e}"),
+        }
+    }
 
     Ok(())
 }

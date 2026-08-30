@@ -169,3 +169,39 @@ pub fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
         notified_count: row.get(17)?,
     })
 }
+
+// ---------------------------------------------------------------------------
+// settings 편의 함수
+//
+// 스케줄러와 트레이가 설정을 자주 들여다보므로, 커넥션을 이미 쥔 상태에서
+// 바로 읽고 쓸 수 있는 얇은 헬퍼를 둔다.
+// ---------------------------------------------------------------------------
+
+pub fn setting(conn: &Connection, key: &str) -> Option<String> {
+    conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| {
+        r.get::<_, String>(0)
+    })
+    .ok()
+}
+
+pub fn setting_i64(conn: &Connection, key: &str, default: i64) -> i64 {
+    setting(conn, key)
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
+pub fn setting_bool(conn: &Connection, key: &str, default: bool) -> bool {
+    match setting(conn, key).as_deref() {
+        Some("true") | Some("1") => true,
+        Some("false") | Some("0") => false,
+        _ => default,
+    }
+}
+
+pub fn put_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2)          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![key, value],
+    )?;
+    Ok(())
+}

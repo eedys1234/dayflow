@@ -4,12 +4,15 @@
   "description": "메인 창과 알림 창에 공통으로 부여하는 권한",
   "windows": [
     "main",
-    "notification"
+    "notification",
+    "widget",
+    "quickadd"
   ],
   "permissions": [
     "core:default",
     "notification:default",
     "dialog:default",
-    "opener:default"
+    "opener:default",
+    "autostart:default"
   ]
 }

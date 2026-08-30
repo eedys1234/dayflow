@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import { exportToExcel } from "../export";
+import { formatDue } from "../date";
+import { disable as autostartOff, enable as autostartOn, isEnabled as autostartIsOn } from "@tauri-apps/plugin-autostart";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useSettings } from "../settings";
 import {
   REMIND_OFFSETS,
@@ -18,9 +21,16 @@ const THEMES: { value: ThemeMode; label: string; icon: string; desc: string }[] 
 
 const TTL_OPTIONS = [10, 20, 30, 60];
 
-type Tab = "display" | "notify" | "data" | "about";
+/** 가속기 문자열을 사람이 읽는 형태로 */
+function label(accelerator: string): string {
+  if (!accelerator) return "사용 안 함";
+  return accelerator.replace("CommandOrControl", "Ctrl/⌘").replace(/\+/g, " + ");
+}
+
+type Tab = "general" | "display" | "notify" | "data" | "about";
 
 const TABS: { value: Tab; label: string; icon: string }[] = [
+  { value: "general", label: "일반", icon: "⚙" },
   { value: "display", label: "화면", icon: "◐" },
   { value: "notify", label: "알림", icon: "🔔" },
   { value: "data", label: "데이터", icon: "🗄" },
@@ -29,12 +39,39 @@ const TABS: { value: Tab; label: string; icon: string }[] = [
 
 export default function SettingsPage({ tasks }: { tasks: Task[] }) {
   const { settings, set } = useSettings();
-  const [tab, setTab] = useState<Tab>("display");
+  const [tab, setTab] = useState<Tab>("general");
   const [version, setVersion] = useState("");
+
+  const [autostart, setAutostart] = useState(false);
+  const [backups, setBackups] = useState<api.BackupInfo[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
+  const [activeSc, setActiveSc] = useState("");
 
   useEffect(() => {
     void api.getAppVersion().then(setVersion).catch(() => {});
+    void autostartIsOn().then(setAutostart).catch(() => {});
+    void api.activeShortcut().then(setActiveSc).catch(() => {});
   }, []);
+
+  const loadBackups = () => {
+    void api.listBackups().then(setBackups).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (tab === "data") loadBackups();
+  }, [tab]);
+
+  const toggleAutostart = async (on: boolean) => {
+    try {
+      if (on) await autostartOn();
+      else await autostartOff();
+      setAutostart(await autostartIsOn());
+    } catch (e) {
+      setNotice(`자동 시작 설정 실패: ${e}`);
+    }
+  };
 
   const stats = useMemo(
     () => ({
@@ -68,6 +105,137 @@ export default function SettingsPage({ tasks }: { tasks: Task[] }) {
       </div>
 
       <div className="page-body settings">
+        {notice && (
+          <p className="notice-bar">
+            {notice}
+            <button type="button" className="ghost" onClick={() => setNotice(null)}>
+              닫기
+            </button>
+          </p>
+        )}
+
+        {tab === "general" && (
+          <>
+            <section className="card">
+              <h2>⚙ 시작</h2>
+
+              <div className="setting">
+                <div className="setting-label">
+                  <strong>부팅 시 자동 시작</strong>
+                  <span>
+                    창은 띄우지 않고 트레이로만 조용히 올라옵니다.
+                    알림을 놓치지 않으려면 켜두는 편이 좋습니다.
+                  </span>
+                </div>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={autostart}
+                    onChange={(e) => void toggleAutostart(e.target.checked)}
+                  />
+                  <span>{autostart ? "켜짐" : "꺼짐"}</span>
+                </label>
+              </div>
+
+              <div className="setting">
+                <div className="setting-label">
+                  <strong>창 닫기 동작</strong>
+                  <span>
+                    트레이로 숨기면 알림이 계속 동작합니다. 종료를 고르면 X 를 누를 때
+                    앱이 완전히 끝납니다.
+                  </span>
+                </div>
+                <div className="seg">
+                  <button
+                    type="button"
+                    className={settings.closeToTray ? "on" : ""}
+                    onClick={() => set("closeToTray", true)}
+                  >
+                    트레이로 숨김
+                  </button>
+                  <button
+                    type="button"
+                    className={!settings.closeToTray ? "on" : ""}
+                    onClick={() => set("closeToTray", false)}
+                  >
+                    종료
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="card">
+              <h2>⌁ 빠른 입력</h2>
+              <p className="section-desc">
+                어느 프로그램에서든 단축키를 누르면 화면 가운데 위에 입력창이 뜹니다.
+                <code>팀 회의 내일 15:00</code> 처럼 적으면 시각까지 함께 등록됩니다.
+              </p>
+
+              <div className="setting">
+                <div className="setting-label">
+                  <strong>전역 단축키</strong>
+                  <span>
+                    {activeSc
+                      ? `현재 동작 중: ${label(activeSc)}`
+                      : "지금은 단축키가 등록돼 있지 않습니다."}
+                    {activeSc && activeSc !== settings.quickAddShortcut &&
+                      " — 고른 조합을 다른 프로그램이 쓰고 있어 대체됐습니다."}
+                  </span>
+                </div>
+                <div className="inline-selects">
+                  <select
+                    value={settings.quickAddShortcut}
+                    onChange={async (e) => {
+                      const v = e.target.value;
+                      try {
+                        const got = await api.setShortcut(v);
+                        set("quickAddShortcut", v);
+                        setActiveSc(got);
+                        if (!v) setNotice("단축키를 껐습니다.");
+                        else if (got !== v)
+                          setNotice(`${label(v)} 는 다른 프로그램이 쓰고 있어 ${label(got)} 로 대체했습니다.`);
+                        else setNotice(`단축키를 ${label(got)} 로 바꿨습니다.`);
+                      } catch (err) {
+                        setNotice(String(err));
+                      }
+                    }}
+                  >
+                    <option value="CommandOrControl+Shift+Space">Ctrl/⌘ + Shift + Space</option>
+                    <option value="CommandOrControl+Shift+N">Ctrl/⌘ + Shift + N</option>
+                    <option value="CommandOrControl+Alt+Space">Ctrl/⌘ + Alt + Space</option>
+                    <option value="">사용 안 함</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section className="card">
+              <h2>▣ 요약 위젯</h2>
+              <p className="section-desc">
+                화면 <strong>우측 상단</strong>에 고정되는 작은 창입니다. 오늘 남은 일과
+                다음 일정 몇 개만 보여주며, 다른 창 위에 항상 떠 있습니다.
+              </p>
+
+              <div className="setting">
+                <div className="setting-label">
+                  <strong>위젯 표시</strong>
+                  <span>트레이 메뉴의 "요약 위젯 켜기 / 끄기" 로도 전환할 수 있습니다.</span>
+                </div>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={settings.widgetVisible}
+                    onChange={(e) => {
+                      set("widgetVisible", e.target.checked);
+                      void api.setWidgetVisible(e.target.checked);
+                    }}
+                  />
+                  <span>{settings.widgetVisible ? "켜짐" : "꺼짐"}</span>
+                </label>
+              </div>
+            </section>
+          </>
+        )}
         {tab === "display" && (
           <section className="card">
             <h2>◐ 테마</h2>
@@ -180,6 +348,34 @@ export default function SettingsPage({ tasks }: { tasks: Task[] }) {
 
             <div className="setting">
               <div className="setting-label">
+                <strong>아침 브리핑</strong>
+                <span>정한 시각에 그날 할 일 요약을 한 번 띄웁니다.</span>
+              </div>
+              <div className="inline-selects">
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={settings.briefingEnabled}
+                    onChange={(e) => set("briefingEnabled", e.target.checked)}
+                  />
+                  <span>{settings.briefingEnabled ? "켜짐" : "꺼짐"}</span>
+                </label>
+                <select
+                  value={settings.briefingAtMin}
+                  disabled={!settings.briefingEnabled}
+                  onChange={(e) => set("briefingAtMin", Number(e.target.value))}
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h * 60}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="setting">
+              <div className="setting-label">
                 <strong>알림 카드 유지 시간</strong>
                 <span>이 시간이 지나면 저절로 사라집니다. 마우스를 올려두면 멈춥니다.</span>
               </div>
@@ -239,6 +435,142 @@ export default function SettingsPage({ tasks }: { tasks: Task[] }) {
                 <strong>{stats.remind}</strong>
                 <span>알림 대기</span>
               </div>
+            </div>
+
+            <div className="setting">
+              <div className="setting-label">
+                <strong>자동 백업</strong>
+                <span>
+                  하루에 한 번 스냅샷을 남기고, 정한 개수만큼만 보관합니다.
+                  파일 복사가 아니라 SQLite 온라인 백업이라 사용 중에도 안전합니다.
+                </span>
+              </div>
+              <div className="inline-selects">
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoBackup}
+                    onChange={(e) => set("autoBackup", e.target.checked)}
+                  />
+                  <span>{settings.autoBackup ? "켜짐" : "꺼짐"}</span>
+                </label>
+                <select
+                  value={settings.backupKeep}
+                  disabled={!settings.autoBackup}
+                  onChange={(e) => set("backupKeep", Number(e.target.value))}
+                >
+                  {[5, 10, 20, 30].map((n) => (
+                    <option key={n} value={n}>
+                      {n}개 보관
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="setting">
+              <div className="setting-label">
+                <strong>지금 백업</strong>
+                <span>백업 폴더에 스냅샷을 하나 더 만듭니다.</span>
+              </div>
+              <div className="inline-selects">
+                <button
+                  type="button"
+                  disabled={busy === "backup"}
+                  onClick={async () => {
+                    setBusy("backup");
+                    try {
+                      const b = await api.createBackup(settings.backupKeep);
+                      setNotice(`백업 완료 — ${b.name}`);
+                      loadBackups();
+                    } catch (e) {
+                      setNotice(String(e));
+                    } finally {
+                      setBusy(null);
+                    }
+                  }}
+                >
+                  ⭳ 지금 백업
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await revealItemInDir(await api.backupsPath());
+                    } catch (e) {
+                      setNotice(String(e));
+                    }
+                  }}
+                >
+                  폴더 열기
+                </button>
+              </div>
+            </div>
+
+            <div className="backups">
+              <h3>백업 목록 <span className="count">{backups.length}</span></h3>
+              {backups.length === 0 && <p className="note">아직 백업이 없습니다.</p>}
+
+              {backups.map((b) => (
+                <div key={b.path} className="backup-row">
+                  <div className="backup-info">
+                    <strong>{formatDue(b.createdAt)}</strong>
+                    <span>
+                      {b.name} · {(b.sizeBytes / 1024).toFixed(0)} KB
+                    </span>
+                  </div>
+
+                  {confirmRestore === b.path ? (
+                    <div className="confirm">
+                      <span>복원 후 재시작합니다.</span>
+                      <button
+                        type="button"
+                        className="danger-solid"
+                        onClick={async () => {
+                          try {
+                            await api.restoreBackup(b.path);
+                            await api.restartApp();
+                          } catch (e) {
+                            setNotice(String(e));
+                            setConfirmRestore(null);
+                          }
+                        }}
+                      >
+                        복원
+                      </button>
+                      <button type="button" className="ghost" onClick={() => setConfirmRestore(null)}>
+                        취소
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="backup-actions">
+                      <button type="button" onClick={() => setConfirmRestore(b.path)}>
+                        복원
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost danger-text"
+                        onClick={async () => {
+                          try {
+                            await api.deleteBackup(b.path);
+                            loadBackups();
+                          } catch (e) {
+                            setNotice(String(e));
+                          }
+                        }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              <p className="note">
+                복원은 즉시 적용되지 않고 <strong>다음 시작 때</strong> 반영됩니다.
+                앱이 DB 파일을 쥔 채로 바꿔치기하면 데이터가 깨질 수 있어서입니다.
+                덮어쓰기 직전의 원본도 자동으로 한 부 남깁니다.
+              </p>
             </div>
 
             <div className="setting">

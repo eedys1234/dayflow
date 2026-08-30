@@ -1,0 +1,278 @@
+/* 요약 위젯 · 빠른 입력 창 공용 스타일.
+   둘 다 투명한 WebviewWindow 위에 카드 하나만 떠 있는 형태다. */
+
+:root {
+  --card-bg: #ffffff;
+  --card-border: #e0e3e8;
+  --surface-2: #f1f3f6;
+  --text: #14181e;
+  --text-2: #566171;
+  --muted: #8b95a3;
+  --accent: #4263eb;
+  --danger: #e03131;
+  --danger-soft: #fff0f0;
+  --pending: #94a1b2;
+  --progress: #f08c00;
+  --done: #2f9e44;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --card-bg: #1b2027;
+    --card-border: #2b333d;
+    --surface-2: #232a32;
+    --text: #e8ecf1;
+    --text-2: #a6b1bf;
+    --muted: #78838f;
+    --accent: #5c7cfa;
+    --danger: #ff6b6b;
+    --danger-soft: #2a1717;
+    --pending: #78838f;
+    --progress: #ffa94d;
+    --done: #51cf66;
+  }
+}
+
+:root[data-theme="dark"] {
+  --card-bg: #1b2027;
+  --card-border: #2b333d;
+  --surface-2: #232a32;
+  --text: #e8ecf1;
+  --text-2: #a6b1bf;
+  --muted: #78838f;
+  --accent: #5c7cfa;
+  --danger: #ff6b6b;
+  --danger-soft: #2a1717;
+  --pending: #78838f;
+  --progress: #ffa94d;
+  --done: #51cf66;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  color: var(--text);
+  font-family:
+    "Pretendard", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+/* ===========================  요약 위젯  =========================== */
+
+.widget {
+  margin: 6px;
+  padding: 12px 13px 13px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 22%);
+}
+
+.w-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.w-head strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.w-date {
+  margin-left: 7px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.w-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.w-actions button {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.w-actions button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.w-counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.w-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 7px 4px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border-top: 2px solid var(--pending);
+}
+
+.w-count.in_progress {
+  border-top-color: var(--progress);
+}
+
+.w-count.done {
+  border-top-color: var(--done);
+}
+
+.w-count strong {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.w-count span {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.w-overdue {
+  margin-top: 8px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.w-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.w-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--pending);
+  font-size: 12px;
+}
+
+.w-item.st-in_progress {
+  border-left-color: var(--progress);
+}
+
+.w-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-2);
+  flex: none;
+}
+
+.w-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.w-empty {
+  padding: 10px 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* ===========================  빠른 입력  =========================== */
+
+.quickadd {
+  margin: 6px;
+  padding: 12px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 34%);
+  user-select: text;
+}
+
+.q-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.q-mark {
+  color: var(--accent);
+  font-size: 17px;
+  flex: none;
+}
+
+.q-row input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+  padding: 4px 0;
+}
+
+.q-row input::placeholder {
+  color: var(--muted);
+}
+
+.q-row kbd {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--card-border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-family: inherit;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.q-hint {
+  margin: 7px 0 0;
+  padding-left: 27px;
+  font-size: 11.5px;
+  color: var(--accent);
+}
+
+.q-error {
+  margin: 7px 0 0;
+  padding-left: 27px;
+  font-size: 11.5px;
+  color: var(--danger);
+}

@@ -40,6 +40,51 @@ export const getSetting = (key: string) => invoke<string | null>("get_setting", 
 export const setSetting = (key: string, value: string) =>
   invoke<void>("set_setting", { key, value });
 
+// --- 백업 ---
+
+export interface BackupInfo {
+  name: string;
+  path: string;
+  sizeBytes: number;
+  createdAt: number;
+}
+
+export const listBackups = () => invoke<BackupInfo[]>("list_backups");
+
+export const createBackup = (keep?: number) =>
+  invoke<BackupInfo>("create_backup", { keep });
+
+/** 다음 시작 때 적용되도록 예약만 한다. 이어서 restartApp 을 불러야 반영된다. */
+export const restoreBackup = (path: string) => invoke<void>("restore_backup", { path });
+
+export const deleteBackup = (path: string) => invoke<void>("delete_backup", { path });
+
+export const backupsPath = () => invoke<string>("backups_path");
+
+export const restartApp = () => invoke<void>("restart_app");
+
+// --- 요약 위젯 / 빠른 입력 ---
+
+export const resizeWidget = (height: number) => invoke<void>("resize_widget", { height });
+
+export const setWidgetVisible = (visible: boolean) =>
+  invoke<void>("set_widget_visible", { visible });
+
+export const widgetVisible = () => invoke<boolean>("widget_visible");
+
+export const openMain = () => invoke<void>("open_main");
+
+export const hideQuickadd = () => invoke<void>("hide_quickadd");
+
+export const resizeQuickadd = (height: number) => invoke<void>("resize_quickadd", { height });
+
+/** 전역 단축키 재등록. 빈 문자열이면 해제한다. 실제로 걸린 조합을 돌려준다. */
+export const setShortcut = (accelerator: string) =>
+  invoke<string>("set_shortcut", { accelerator });
+
+/** 지금 실제로 동작 중인 단축키 (충돌 시 대체된 값일 수 있다) */
+export const activeShortcut = () => invoke<string>("active_shortcut");
+
 // --- 알림 창 전용 ---
 
 export const notificationReady = () => invoke<void>("notification_ready");

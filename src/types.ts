@@ -63,7 +63,7 @@ export interface NotificationPayload {
   body: string | null;
   startsAt: number | null;
   endsAt: number | null;
-  kind: "reminder" | "overdue" | "test";
+  kind: "reminder" | "overdue" | "test" | "briefing";
   /** 반복 알림의 몇 번째인지 */
   repeatSeq: number | null;
   /** 총 반복 횟수. 무제한이면 null */
