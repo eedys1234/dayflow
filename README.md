@@ -25,6 +25,7 @@ Rust + Tauri v2 기반 일정/할 일 관리 데스크탑 앱.
 | **아침 브리핑** — 정한 시각에 그날 요약 1회 | ✅ |
 | **전역 단축키 빠른 입력** — 어디서든 한 줄 등록, 충돌 시 자동 대체 | ✅ |
 | **요약 위젯** — 화면 우측 상단 고정, 항상 위 | ✅ |
+| **로컬 HTTP API** — 토큰 인증 + SSE, 모바일/터널 접근의 토대 | ✅ |
 | 태그 기반 버전 표시 · GitHub Actions 릴리스(Win/macOS) | ✅ |
 | 우측 하단 알림 창 (스택, 자동 사라짐, 완료/다시 알림) | ✅ |
 | 일정(Event) — 기간이 있는 항목 | 미착수 |
@@ -235,3 +236,28 @@ notification.tsx ──► 카드 표시. 완료 / 10분 후 / 1시간 후 / 닫
 > `Ctrl+Alt+Space` 를 이미 쓰고 있는 경우가 많습니다. 등록에 실패하면 대안을
 > 차례로 시도하고, **실제로 걸린 조합**을 설정 화면에 표시합니다.
 > 조용히 실패하면 사용자는 단축키가 왜 안 먹는지 알 수 없기 때문입니다.
+
+## 로컬 HTTP API (모바일 / 터널)
+
+설정 → 연결 탭에서 켭니다. 기본은 꺼져 있고 `127.0.0.1:17800` 에만 바인딩합니다.
+
+| 엔드포인트 | 설명 |
+|---|---|
+| `GET /health` | 인증 없음 — 연결 확인용 (이름·버전만) |
+| `GET /api/tasks` | 목록 |
+| `POST /api/tasks` | 등록 (`{title, startsAt?, endsAt?, remind?, ...}`) |
+| `PATCH /api/tasks/:id/status` | 상태 변경 (`{status: "pending"|"in_progress"|"done"}`) |
+| `GET /api/events` | SSE — `tasks_changed` · `notification` 이벤트 스트림 |
+
+모든 `/api/*` 는 `Authorization: Bearer <토큰>` 이 필요합니다. 브라우저
+EventSource 는 헤더를 못 붙이므로 SSE 는 `?token=` 쿼리도 받습니다.
+
+**외부 접근** — `ngrok http 17800` 또는
+`cloudflared tunnel --url http://127.0.0.1:17800`. 터널은 같은 PC 에서 돌므로
+루프백 바인딩으로 충분하고, 같은 Wi-Fi 의 폰이 직접 붙을 때만 설정에서
+LAN 바인딩을 켭니다.
+
+**폰 알림** — 클라이언트(Flutter 등)가 `/api/events` SSE 를 유지하다가
+`notification` 이벤트를 받으면 로컬 알림으로 띄우면 됩니다. 데스크탑
+알림 창에 뜨는 것과 같은 페이로드가 그대로 흐릅니다. 앱이 완전히 종료된
+상태의 푸시는 FCM 이 필요하며 이 API 범위 밖입니다.

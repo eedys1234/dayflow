@@ -97,6 +97,12 @@ pub fn position_bottom_right(win: &WebviewWindow) -> Result<(), String> {
 
 /// 알림 한 건을 우측 하단에 띄운다.
 pub fn push(app: &AppHandle, payload: NotificationPayload) -> Result<(), String> {
+    // 원격 클라이언트(SSE)에도 같은 알림을 흘린다. 폰 앱은 이 이벤트를 받아
+    // 로컬 알림으로 바꿔 띄우면 된다. 직렬화 실패는 화면 표시를 막지 않는다.
+    if let Ok(v) = serde_json::to_value(&payload) {
+        crate::server::publish(app, "notification", v);
+    }
+
     let win = ensure_window(app)?;
 
     if READY.load(Ordering::SeqCst) {

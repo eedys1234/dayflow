@@ -85,6 +85,26 @@ export const setShortcut = (accelerator: string) =>
 /** 지금 실제로 동작 중인 단축키 (충돌 시 대체된 값일 수 있다) */
 export const activeShortcut = () => invoke<string>("active_shortcut");
 
+// --- 로컬 HTTP API (모바일/터널 접근) ---
+
+export interface ApiInfo {
+  enabled: boolean;
+  running: boolean;
+  port: number;
+  lan: boolean;
+  token: string;
+}
+
+export const apiInfo = () => invoke<ApiInfo>("api_info");
+
+export const setApiEnabled = (enabled: boolean) =>
+  invoke<ApiInfo>("set_api_enabled", { enabled });
+
+export const setApiLan = (lan: boolean) => invoke<ApiInfo>("set_api_lan", { lan });
+
+/** 토큰을 새로 발급한다. 기존 클라이언트는 전부 재인증해야 한다. */
+export const regenerateApiToken = () => invoke<ApiInfo>("regenerate_api_token");
+
 // --- 알림 창 전용 ---
 
 export const notificationReady = () => invoke<void>("notification_ready");

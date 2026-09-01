@@ -434,3 +434,12 @@
 .modal > form > .modal-body:not(:only-child) {
   border-bottom-color: var(--border);
 }
+
+/* ---------- 연결 탭 ---------- */
+
+.token-box {
+  width: 300px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}

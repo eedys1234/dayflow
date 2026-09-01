@@ -27,13 +27,14 @@ function label(accelerator: string): string {
   return accelerator.replace("CommandOrControl", "Ctrl/⌘").replace(/\+/g, " + ");
 }
 
-type Tab = "general" | "display" | "notify" | "data" | "about";
+type Tab = "general" | "display" | "notify" | "data" | "connect" | "about";
 
 const TABS: { value: Tab; label: string; icon: string }[] = [
   { value: "general", label: "일반", icon: "⚙" },
   { value: "display", label: "화면", icon: "◐" },
   { value: "notify", label: "알림", icon: "🔔" },
   { value: "data", label: "데이터", icon: "🗄" },
+  { value: "connect", label: "연결", icon: "🔗" },
   { value: "about", label: "정보", icon: "ℹ" },
 ];
 
@@ -48,6 +49,8 @@ export default function SettingsPage({ tasks }: { tasks: Task[] }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
   const [activeSc, setActiveSc] = useState("");
+  const [apiInfo, setApiInfo] = useState<api.ApiInfo | null>(null);
+  const [showToken, setShowToken] = useState(false);
 
   useEffect(() => {
     void api.getAppVersion().then(setVersion).catch(() => {});
@@ -61,6 +64,7 @@ export default function SettingsPage({ tasks }: { tasks: Task[] }) {
 
   useEffect(() => {
     if (tab === "data") loadBackups();
+    if (tab === "connect") void api.apiInfo().then(setApiInfo).catch((e) => setNotice(String(e)));
   }, [tab]);
 
   const toggleAutostart = async (on: boolean) => {
@@ -600,6 +604,148 @@ export default function SettingsPage({ tasks }: { tasks: Task[] }) {
               실행 취소와 향후 기기 간 동기화를 위해서입니다.
             </p>
           </section>
+        )}
+
+        {tab === "connect" && (
+          <>
+            <section className="card">
+              <h2>🔗 로컬 API 서버</h2>
+              <p className="section-desc">
+                이 PC 안에 작은 HTTP 서버를 띄워 폰이나 다른 기기가 할 일을 읽고
+                등록할 수 있게 합니다. 모든 요청은 아래 토큰이 있어야 하고,
+                변경 사항과 알림은 SSE(<code>/api/events</code>)로 실시간 전달됩니다.
+              </p>
+
+              <div className="setting">
+                <div className="setting-label">
+                  <strong>API 서버</strong>
+                  <span>
+                    {apiInfo?.running
+                      ? `실행 중 — ${apiInfo.lan ? "0.0.0.0" : "127.0.0.1"}:${apiInfo.port}`
+                      : "꺼져 있음"}
+                  </span>
+                </div>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={apiInfo?.enabled ?? false}
+                    onChange={async (e) => {
+                      try {
+                        setApiInfo(await api.setApiEnabled(e.target.checked));
+                      } catch (err) {
+                        setNotice(String(err));
+                      }
+                    }}
+                  />
+                  <span>{apiInfo?.enabled ? "켜짐" : "꺼짐"}</span>
+                </label>
+              </div>
+
+              <div className="setting">
+                <div className="setting-label">
+                  <strong>같은 Wi-Fi 에서 직접 접근 허용</strong>
+                  <span>
+                    끄면 이 PC(127.0.0.1)에서만 접근됩니다 — ngrok·Cloudflare 터널은
+                    이 상태로 충분합니다. 켜면 같은 네트워크의 폰이 터널 없이 붙습니다.
+                  </span>
+                </div>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={apiInfo?.lan ?? false}
+                    disabled={!apiInfo?.enabled}
+                    onChange={async (e) => {
+                      try {
+                        setApiInfo(await api.setApiLan(e.target.checked));
+                      } catch (err) {
+                        setNotice(String(err));
+                      }
+                    }}
+                  />
+                  <span>{apiInfo?.lan ? "LAN" : "이 PC만"}</span>
+                </label>
+              </div>
+
+              <div className="setting">
+                <div className="setting-label">
+                  <strong>접근 토큰</strong>
+                  <span>유출됐다면 재발급하세요. 기존 클라이언트는 전부 끊깁니다.</span>
+                </div>
+                <div className="inline-selects">
+                  <input
+                    type="text"
+                    readOnly
+                    className="token-box"
+                    value={
+                      showToken ? (apiInfo?.token ?? "") : "•".repeat(Math.min(32, apiInfo?.token.length ?? 0))
+                    }
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <button type="button" onClick={() => setShowToken((v) => !v)}>
+                    {showToken ? "가리기" : "보기"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(apiInfo?.token ?? "");
+                        setNotice("토큰을 복사했습니다.");
+                      } catch {
+                        setShowToken(true);
+                        setNotice("자동 복사가 막혀 있습니다. 토큰을 드래그해 복사하세요.");
+                      }
+                    }}
+                  >
+                    복사
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost danger-text"
+                    onClick={async () => {
+                      try {
+                        setApiInfo(await api.regenerateApiToken());
+                        setNotice("토큰을 재발급했습니다. 기존 클라이언트는 재인증이 필요합니다.");
+                      } catch (err) {
+                        setNotice(String(err));
+                      }
+                    }}
+                  >
+                    재발급
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="card">
+              <h2>📱 연결 방법</h2>
+
+              <p className="note">
+                <strong>1. 연결 확인</strong> — 서버를 켜고 이 PC 브라우저에서{" "}
+                <code>http://127.0.0.1:{apiInfo?.port ?? 17800}/health</code> 를 열면
+                버전 정보가 보입니다.
+              </p>
+              <p className="note">
+                <strong>2. 외부에서 접근 (터널)</strong> —{" "}
+                <code>ngrok http {apiInfo?.port ?? 17800}</code> 또는{" "}
+                <code>cloudflared tunnel --url http://127.0.0.1:{apiInfo?.port ?? 17800}</code>.
+                ngrok 무료 플랜은 재시작마다 주소가 바뀌므로, 고정 주소가 필요하면
+                Cloudflare Tunnel 을 권합니다.
+              </p>
+              <p className="note">
+                <strong>3. 요청 예시</strong> — 모든 API 는{" "}
+                <code>Authorization: Bearer 토큰</code> 헤더가 필요합니다.
+                <br />
+                <code>GET /api/tasks</code> 목록 · <code>POST /api/tasks</code> 등록 ·{" "}
+                <code>PATCH /api/tasks/:id/status</code> 상태 변경
+              </p>
+              <p className="note">
+                <strong>4. 실시간 알림</strong> — <code>GET /api/events?token=토큰</code> 을
+                SSE 로 구독하면 <code>tasks_changed</code> 와 <code>notification</code> 이벤트가
+                흐릅니다. 폰 앱(Flutter)은 이 연결을 유지하다가 notification 을 받으면
+                로컬 알림으로 띄우면 됩니다.
+              </p>
+            </section>
+          </>
         )}
 
         {tab === "about" && (

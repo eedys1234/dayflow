@@ -6,6 +6,7 @@ mod models;
 mod notify;
 mod quickadd;
 mod scheduler;
+mod server;
 mod tray;
 mod widget;
 
@@ -30,6 +31,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(notify::NotifyQueue::default())
+        .manage(server::ApiBus::default())
+        .manage(server::ApiServer::default())
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -82,6 +85,19 @@ pub fn run() {
                 let _ = widget::show(&handle);
             }
 
+            // 로컬 HTTP API — 켜 둔 경우에만 띄운다. 포트 선점 등으로 실패해도
+            // 앱 자체는 계속 뜬다.
+            let api_enabled = {
+                let db = handle.state::<db::Db>();
+                let conn = db.0.lock().map_err(|_| "DB 잠금 실패".to_string())?;
+                db::setting_bool(&conn, "apiEnabled", false)
+            };
+            if api_enabled {
+                if let Err(e) = server::start(&handle) {
+                    eprintln!("[api] {e}");
+                }
+            }
+
             scheduler::spawn(handle);
 
             Ok(())
@@ -118,6 +134,10 @@ pub fn run() {
             quickadd::resize_quickadd,
             quickadd::set_shortcut,
             quickadd::active_shortcut,
+            server::api_info,
+            server::set_api_enabled,
+            server::set_api_lan,
+            server::regenerate_api_token,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 앱 실행에 실패했습니다");

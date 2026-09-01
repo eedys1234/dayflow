@@ -195,8 +195,9 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// 트레이·위젯이 함께 갱신되도록 한 곳에 모은다.
+/// 트레이·위젯·SSE 구독자가 함께 갱신되도록 한 곳에 모은다.
 pub fn broadcast(app: &AppHandle) {
     let _ = app.emit("tasks://changed", ());
     refresh(app);
+    crate::server::publish(app, "tasks_changed", serde_json::Value::Null);
 }
