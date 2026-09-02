@@ -7,6 +7,26 @@
 >   [`.github/workflows/ci.yml`](.github/workflows/ci.yml) · [`scripts/release.sh`](scripts/release.sh)
 > - 자동 업데이트는 **아직 꺼져 있습니다.** 서명 키를 만든 뒤 2·3절대로 켜세요.
 >   (키 생성은 비밀번호 입력이 필요해 직접 하셔야 합니다.)
+> - macOS 코드 서명도 꺼져 있습니다 — 아래 **함정** 항목을 반드시 읽으세요.
+
+### ⚠️ 함정 — 빈 `APPLE_CERTIFICATE` 는 빌드를 깨뜨린다
+
+`APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}` 처럼 써 두면, Secret 이
+없을 때 **빈 문자열**이 환경 변수로 내려갑니다. Tauri 번들러는 `var_os` 로
+존재 여부만 보기 때문에 빈 값도 "인증서가 있다"고 판단하고 keychain import 를
+시도하다 실패합니다.
+
+```
+failed to bundle project: failed codesign application:
+failed to run command security import: failed to import keychain certificate
+```
+
+Rust 컴파일은 전부 성공한 뒤 **마지막 번들링 단계**에서만 터지므로, 20분을
+기다린 끝에 실패하는 형태가 됩니다. 그래서 `release.yml` 에서는 이 변수들을
+**주석 처리**해 두었고, 인증서를 실제로 등록한 뒤에만 풀도록 했습니다.
+
+`TAURI_SIGNING_PRIVATE_KEY` 는 같은 함정이 없습니다 — `createUpdaterArtifacts`
+가 꺼져 있으면 아예 참조되지 않기 때문입니다.
 
 ## 0. 버전 한 줄 요약
 

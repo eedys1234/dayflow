@@ -73,16 +73,23 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 자동 업데이트를 켠 뒤에만 값이 들어간다. 비어 있어도 빌드는 통과한다.
+          # 업데이터 서명 키. createUpdaterArtifacts 가 꺼져 있으면 쓰이지 않으므로
+          # 비어 있어도 안전하다. 업데이터를 켤 때 Secrets 에 값을 넣으면 된다.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS 공증. 인증서를 등록하기 전에는 건너뛴다.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS 코드 서명·공증은 인증서를 실제로 등록한 뒤에 켠다.
+          #
+          # 주의: APPLE_CERTIFICATE 를 빈 값으로라도 내려주면 안 된다.
+          # Tauri 번들러는 var_os 로 "존재 여부"만 보기 때문에 빈 문자열도
+          # 설정된 것으로 보고 keychain import 를 시도하다 빌드가 깨진다.
+          # 인증서를 준비했다면 아래 6줄의 주석을 풀어라.
+          #
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Dayflow __VERSION__"
